@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>AgentGuard Dashboard</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #0f1720; color: #e8eef2; margin: 0; padding: 24px; }
+    h1 { margin: 0 0 4px; }
+    .sub { color: #8a99a5; margin-bottom: 20px; }
+    .bar { display: flex; gap: 12px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; }
+    #status { padding: 8px 14px; border-radius: 6px; font-weight: bold; }
+    .live { background: #1f6b4f; }
+    .dead { background: #b32d2d; }
+    button { border: 0; border-radius: 6px; padding: 8px 14px; cursor: pointer; font-weight: bold; color: white; }
+    #killBtn { background: #b32d2d; }
+    #redBtn { background: #7a3db8; }
+    #clearBtn { background: #3a4752; }
+    .approve { background: #2e7d4f; }
+    .deny { background: #b32d2d; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 10px; border-bottom: 1px solid #25323d; font-size: 14px; vertical-align: top; }
+    th { color: #8a99a5; }
+    .tag { padding: 3px 10px; border-radius: 12px; font-weight: bold; font-size: 12px; }
+    .allow, .approved { background: #2e7d4f; }
+    .block, .denied { background: #b32d2d; }
+    .hold, .pending { background: #c98410; }
+    .src { color: #8a99a5; font-size: 12px; }
+    code { color: #9ecbff; }
+  </style>
+</head>
+<body>
+  <h1>AgentGuard</h1>
+  <div class="sub">Live firewall for AI agents</div>
+
+  <div class="bar">
+    <div id="status" class="live">AGENT ACTIVE</div>
+    <button id="killBtn" onclick="toggleKill()">KILL SWITCH</button>
+    <button id="redBtn" onclick="redTeam()">RED TEAM ATTACK</button>
+    <button id="clearBtn" onclick="clearLog()">CLEAR LOG</button>
+  </div>
+
+  <table>
+    <thead>
+      <tr><th>Time</th><th>Source</th><th>Action</th><th>Decision</th><th>Reason</th><th>Status</th><th></th></tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+
+  <script>
+    async function load() {
+      const res = await fetch("/logs");
+      const data = await res.json();
+
+      const st = document.getElementById("status");
+      st.textContent = data.killed ? "AGENT FROZEN" : "AGENT ACTIVE";
+      st.className = data.killed ? "dead" : "live";
+
+      document.getElementById("rows").innerHTML = data.logs.map(l => `
+        <tr>
+          <td>${l.time}</td>
+          <td class="src">${l.source}</td>
+          <td><code>${JSON.stringify(l.action).replace(/</g, "&lt;")}</code></td>
+          <td><span class="tag ${l.decision}">${l.decision.toUpperCase()}</span></td>
+          <td>${l.reason}</td>
+          <td><span class="tag ${l.status}">${l.status.toUpperCase()}</span></td>
+          <td>${l.status === "pending"
+            ? `<button class="approve" onclick="review(${l.id},'approve')">Approve</button>
+               <button class="deny" onclick="review(${l.id},'deny')">Deny</button>`
+            : ""}</td>
+        </tr>`).join("");
+    }
+
+    async function review(id, choice) {
+      await fetch(`/review/${id}/${choice}`, { method: "POST" });
+      load();
+    }
+
+    async function toggleKill() {
+      await fetch("/kill", { method: "POST" });
+      load();
+    }
+
+    async function redTeam() {
+      document.getElementById("redBtn").disabled = true;
+      await fetch("/redteam", { method: "POST" });
+      document.getElementById("redBtn").disabled = false;
+      load();
+    }
+
+    async function clearLog() {
+      await fetch("/reset", { method: "POST" });
+      load();
+    }
+
+    load();
+    setInterval(load, 700);
+  </script>
+</body>
+</html>
